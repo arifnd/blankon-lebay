@@ -22,7 +22,7 @@ COL_PIXBUF = 1
 COL_IS_DIRECTORY = 2
 
 
-class LebayApp:
+class LebayApp(object):
 	def auto_start(self, widget):
 		status = widget.get_active()
 		
@@ -43,10 +43,10 @@ class LebayApp:
 	def auto_status(self):
 		lastLine = file(DAEMONFILE, "r").readlines()[-1]
 		textValue = lastLine.split("=")
-		if textValue[1] == 'true\n':
-			return True
-		else:
-			return False
+		return textValue[1].strip() == 'true'
+		#	return True
+		#else:
+		#	return False
 	
 	def browse_image(self, widget):
 		if gtk.pygtk_version < (2,3,90):
@@ -87,6 +87,7 @@ class LebayApp:
 		thum = gtk.gdk.pixbuf_new_from_file_at_size(wall,320,-1)
 		self.preview.set_from_pixbuf(thum)
 		self.teks.set_text(wall)
+		print widget.get_label()
 	
 	def create_store(self):
 		store = gtk.ListStore(str, gtk.gdk.Pixbuf, bool)
@@ -100,7 +101,7 @@ class LebayApp:
 		
 	def fill_store(self):
 		self.store.clear()
-		if THEMEDIR == None:
+		if THEMEDIR is None:
 			return
 		
 		for fl in os.listdir(THEMEDIR):
@@ -239,7 +240,7 @@ class LebayApp:
 		
 		aktif = gtk.CheckButton("Activate BlankOn Contextual Desktop")
 		aktif.set_active(self.auto_status())
-		aktif.connect("toggled", self.auto_status)
+		aktif.connect("toggled", self.auto_start)
 		mainTable.attach(aktif,0,1,1,2)
 		
 		halign = gtk.Alignment(1, 0, 0, 0)
