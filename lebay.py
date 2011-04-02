@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 #prototype lebay
-#edit terakhir 300311
+#edit terakhir 020411
 #zerosix06 at gmail dot com
 
 import pygtk
@@ -9,18 +9,13 @@ pygtk.require('2.0')
 import gtk
 import os
 import gconf
-#import sys
-#from PIL import Image
+import sys
 
 HOME = os.path.expanduser('~')
 DAEMONFILE = HOME+"/.config/autostart/blankon-contextual-desktop-daemon.desktop"
-#DAEMONFILE = "blankon-contextual-desktop-daemon.desktop"
 THEMEDIR = "/usr/share/blankon-contextual-desktop/theme/"
-ACTIVEITEM = None
 COL_PATH = 0
 COL_PIXBUF = 1
-COL_IS_DIRECTORY = 2
-
 
 class LebayApp(object):
 	def auto_start(self, widget):
@@ -44,9 +39,6 @@ class LebayApp(object):
 		lastLine = file(DAEMONFILE, "r").readlines()[-1]
 		textValue = lastLine.split("=")
 		return textValue[1].strip() == 'true'
-		#	return True
-		#else:
-		#	return False
 	
 	def browse_image(self, widget):
 		if gtk.pygtk_version < (2,3,90):
@@ -63,19 +55,15 @@ class LebayApp(object):
 		filter = gtk.FileFilter()
 		filter.set_name("Images")
 		filter.add_mime_type("image/png")
-		filter.add_mime_type("image/jpeg")
-		filter.add_mime_type("image/gif")
 		filter.add_pattern("*.png")
-		filter.add_pattern("*.jpg")
-		filter.add_pattern("*.gif")
-		filter.add_pattern("*.tif")
-		filter.add_pattern("*.xpm")
 		dialog.add_filter(filter)
 
 		response = dialog.run()
 		if response == gtk.RESPONSE_OK:
 			self.teks.set_text(dialog.get_filename())
-			self.preview.set_from_file(dialog.get_filename())
+			self.preview.set_from_pixbuf(self.thum_image(dialog.get_filename(),320))
+			parm = self.activeWall.split(".")
+			self.client.set_string("/apps/blankon-desktop/context/"+parm[0]+"/themes/"+self.theme+"/"+parm[1], dialog.get_filename())
 		dialog.destroy()
 		
 	def change_pos(self, widget, data):
@@ -83,22 +71,35 @@ class LebayApp(object):
 		self.activePos.set_sensitive(True)
 		self.activePos = widget
 		parm = data.split(".")
-		wall = self.client.get_string ("/apps/blankon-desktop/context/"+parm[0]+"/themes/"+self.theme+"/"+parm[1])
-		thum = gtk.gdk.pixbuf_new_from_file_at_size(wall,320,-1)
-		self.preview.set_from_pixbuf(thum)
+		wall = self.client.get_string("/apps/blankon-desktop/context/"+parm[0]+"/themes/"+self.theme+"/"+parm[1])
+		self.preview.set_from_pixbuf(self.thum_image(wall,320))
 		self.teks.set_text(wall)
-		print widget.get_label()
+		self.activeWall = data
 	
 	def create_store(self):
 		store = gtk.ListStore(str, gtk.gdk.Pixbuf, bool)
 		store.set_sort_column_id(COL_PATH, gtk.SORT_ASCENDING)
 		return store
 		
-	def change_theme(self, widget, item):
+	def change_theme(self, widget):
+		item = widget.get_cursor()
 		model = widget.get_model()
-		path = model[item][COL_PATH]
-		print path
+		path = model[item[0]][COL_PATH]
+		self.theme = path
+		parm = self.activeWall.split(".")
+		wall = self.client.get_string("/apps/blankon-desktop/context/"+parm[0]+"/themes/"+self.theme+"/"+parm[1])
+		self.teks.set_text(wall)
+		self.preview.set_from_pixbuf(self.thum_image(wall,320))
+		#self.client.set_string("/apps/blankon-desktop/context/time/theme", path)
 		
+	def exists(self, filename):
+		try:
+			f = open(filename)
+			f.close()
+			return True
+		except:
+			return False
+	
 	def fill_store(self):
 		self.store.clear()
 		if THEMEDIR is None:
@@ -107,15 +108,25 @@ class LebayApp(object):
 		for fl in os.listdir(THEMEDIR):
 			if not fl[0] == '.':
 				if os.path.isdir(os.path.join(THEMEDIR, fl)):
-					self.store.append([fl, gtk.gdk.pixbuf_new_from_file_at_size(THEMEDIR+fl+"/time/dawn.png",180,-1), True])
-					
+					self.store.append([fl, self.thum_image(THEMEDIR+fl+"/time/dawn.png",180), True])
+	
+	def default_key(self, widget):
+		parm = self.activeWall.split(".")
+		defaultWall = THEMEDIR+self.theme+"/"+parm[0]+"/"+parm[1]+".png"
+		self.client.set_string("/apps/blankon-desktop/context/"+parm[0]+"/themes/"+self.theme+"/"+parm[1], defaultWall)
+		self.preview.set_from_pixbuf(self.thum_image(defaultWall,320))
+		self.teks.set_text(defaultWall)
+	
+	def thum_image(self, dir, width):
+		return gtk.gdk.pixbuf_new_from_file_at_size(dir,width,-1)
+		
 	def __init__(self):
 		window = gtk.Window(gtk.WINDOW_TOPLEVEL)
-		window.connect("delete_event", gtk.main_quit) #error variabel
 		window.set_size_request(480,500) #ukuran window
 		window.set_border_width(10) #padding
 		window.set_position(gtk.WIN_POS_CENTER) #posisi window
 		window.set_title("Lebay") #judul
+		window.connect("delete_event", gtk.main_quit)
 		
 		try:
 			window.set_icon_from_file("lebay.png") #icon
@@ -124,8 +135,8 @@ class LebayApp(object):
 			sys.exit(1)
 		
 		self.client = gconf.client_get_default()
-		self.theme = self.client.get_string ("/apps/blankon-desktop/context/time/theme")
-		themeFirst = self.client.get_string ("/apps/blankon-desktop/context/time/themes/"+self.theme+"/dawn")
+		self.theme = self.client.get_string("/apps/blankon-desktop/context/time/theme")
+		themeFirst = self.client.get_string("/apps/blankon-desktop/context/time/themes/"+self.theme+"/dawn")
 		self.store = self.create_store()
 		self.fill_store()
 		
@@ -138,7 +149,7 @@ class LebayApp(object):
 		#halaman tema
 		themeView = gtk.IconView(self.store)
 		themeView.set_size_request(430,400)
-		themeView.set_selection_mode(gtk.SELECTION_SINGLE)
+		themeView.set_selection_mode(gtk.SELECTION_MULTIPLE)
 		themeView.set_text_column(COL_PATH)
 		themeView.set_pixbuf_column(COL_PIXBUF)
 		themeView.connect("selection-changed", self.change_theme)
@@ -162,14 +173,19 @@ class LebayApp(object):
 		wallTable.set_col_spacings(10)
 		
 		self.preview = gtk.Image()
-		test = gtk.gdk.pixbuf_new_from_file_at_size(themeFirst,320,-1)
-		self.preview.set_from_pixbuf(test)
-		wallTable.attach(self.preview,1,3,0,13)
+		self.preview.set_size_request(320,-1)
+		self.preview.set_from_pixbuf(self.thum_image(themeFirst,320))
+		wallTable.attach(self.preview,1,3,0,14)
 		
 		self.teks = gtk.Entry()
-		wallTable.attach(self.teks,1,2,15,16)
+		self.teks.set_text(themeFirst)
+		wallTable.attach(self.teks,1,3,14,15)
 		
-		browseButton = gtk.Button("Atur")
+		defaultButton = gtk.Button("_Default")
+		defaultButton.connect("clicked", self.default_key)
+		wallTable.attach(defaultButton,1,2,15,16)
+		
+		browseButton = gtk.Button("_Browse")
 		browseButton.connect("clicked", self.browse_image)
 		wallTable.attach(browseButton,2,3,15,16)
 		
@@ -238,7 +254,7 @@ class LebayApp(object):
 		label = gtk.Label("Wallpaper")
 		tab.insert_page(wallTable,label)	
 		
-		aktif = gtk.CheckButton("Activate BlankOn Contextual Desktop")
+		aktif = gtk.CheckButton("_Activate BlankOn Contextual Desktop")
 		aktif.set_active(self.auto_status())
 		aktif.connect("toggled", self.auto_start)
 		mainTable.attach(aktif,0,1,1,2)
@@ -254,6 +270,7 @@ class LebayApp(object):
 		window.show_all()
 		
 		self.activePos = dawn
+		self.activeWall = "time.dawn"
 		
 def main():
 	gtk.main()
