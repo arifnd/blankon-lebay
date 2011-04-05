@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 #prototype lebay
-#edit terakhir 020411
+#edit terakhir 050411
 #zerosix06 at gmail dot com
 
 import pygtk
@@ -10,35 +10,75 @@ import gtk
 import os
 import gconf
 import sys
+import commands
+import signal
 
 HOME = os.path.expanduser('~')
-DAEMONFILE = HOME+"/.config/autostart/blankon-contextual-desktop-daemon.desktop"
+APP = "blankon-contextual-desktop-daemon"
+DAEMONMASTER = "/etc/xdg/autostart/"+APP+".desktop"
+DAEMONFILE = HOME+"/.config/autostart/"+APP+".desktop"
 THEMEDIR = "/usr/share/blankon-contextual-desktop/theme/"
 COL_PATH = 0
 COL_PIXBUF = 1
 
 class LebayApp(object):
+	def app_kill(self):
+		output = commands.getoutput("ps -A -o pid,cmd | grep "+APP)
+		out = output.split('\n')[0]
+		pid = out.split(' ')[1]
+		os.kill(int(pid.strip()),signal.SIGHUP)
+	
+	def app_run(self):
+		os.system(APP+" 1>/dev/null &")
+		
+	def app_status(self):
+		output = commands.getoutput("ps -A -o cmd | grep -x "+APP)
+		return output == APP
+	
 	def auto_start(self, widget):
 		status = widget.get_active()
 		
 		if status:
 			before = "X-GNOME-Autostart-enabled=false"
 			after = "X-GNOME-Autostart-enabled=true"
+			if not self.app_status():
+				self.app_run()
 		else:
 			before = "X-GNOME-Autostart-enabled=true"
 			after = "X-GNOME-Autostart-enabled=false"
+			if not self.exists(DAEMONFILE):
+				os.system("cp %s %s" % (DAEMONMASTER, DAEMONFILE))
+				fout = open(DAEMONFILE, "a")
+				fout.write(after)
+				fout.close()
+			
+			if self.app_status():
+				self.app_kill()
 		
-		file = open(DAEMONFILE, "r")
-		text = file.read()
-		file.close()
-		file = open(DAEMONFILE, "w")
-		file.write(text.replace(before,after))
-		file.close()
+		if self.exists(DAEMONFILE):
+			file = open(DAEMONFILE, "r")
+			text = file.read()
+			file.close()
+			file = open(DAEMONFILE, "w")
+			file.write(text.replace(before,after))
+			file.close()
 	
 	def auto_status(self):
-		lastLine = file(DAEMONFILE, "r").readlines()[-1]
-		textValue = lastLine.split("=")
-		return textValue[1].strip() == 'true'
+		if self.exists(DAEMONFILE):
+			lastLine = file(DAEMONFILE, "r").readlines()[-1]
+			textValue = lastLine.split("=")
+			if textValue[1].strip() == 'true':
+				if not self.app_status():
+					self.app_run()
+				return True
+			else:
+				if self.app_status():
+					self.app_kill()
+				return False
+		else:
+			if not self.app_status():
+				self.app_run()
+			return True
 	
 	def browse_image(self, widget):
 		if gtk.pygtk_version < (2,3,90):
@@ -75,6 +115,7 @@ class LebayApp(object):
 		self.preview.set_from_pixbuf(self.thum_image(wall,320))
 		self.teks.set_text(wall)
 		self.activeWall = data
+		print self.app_status()
 	
 	def create_store(self):
 		store = gtk.ListStore(str, gtk.gdk.Pixbuf, bool)
