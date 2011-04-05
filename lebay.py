@@ -115,7 +115,6 @@ class LebayApp(object):
 		self.preview.set_from_pixbuf(self.thum_image(wall,320))
 		self.teks.set_text(wall)
 		self.activeWall = data
-		print self.app_status()
 	
 	def create_store(self):
 		store = gtk.ListStore(str, gtk.gdk.Pixbuf, bool)
@@ -131,7 +130,8 @@ class LebayApp(object):
 		wall = self.client.get_string("/apps/blankon-desktop/context/"+parm[0]+"/themes/"+self.theme+"/"+parm[1])
 		self.teks.set_text(wall)
 		self.preview.set_from_pixbuf(self.thum_image(wall,320))
-		#self.client.set_string("/apps/blankon-desktop/context/time/theme", path)
+		self.client.set_string("/apps/blankon-desktop/context/time/theme", path)
+		#os.system("blankon-contextual-desktop-update")
 		
 	def exists(self, filename):
 		try:
@@ -159,10 +159,15 @@ class LebayApp(object):
 		self.teks.set_text(defaultWall)
 	
 	def thum_image(self, dir, width):
-		return gtk.gdk.pixbuf_new_from_file_at_size(dir,width,-1)
+		thum = gtk.gdk.pixbuf_new_from_file(dir)
+		if thum.get_width() < width:
+			return thum
+		else:
+			return gtk.gdk.pixbuf_new_from_file_at_size(dir,width,-1)
 		
 	def __init__(self):
 		window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+		window.set_resizable(False)
 		window.set_size_request(480,500) #ukuran window
 		window.set_border_width(10) #padding
 		window.set_position(gtk.WIN_POS_CENTER) #posisi window
